@@ -1,0 +1,2589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12263a">
+<title>India Infectious Disease Map</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+:root{
+  --ink:#12263a; --ink-2:#47596b; --ink-3:#66798a;
+  --mist:#eef3f6; --card:#ffffff; --line:#d9e2e9; --line-2:#e8eef3;
+  --rise:#c2421f; --rise-bg:#fbe9e3; --rise-tx:#9c3217;
+  --fall:#1c7d52; --fall-bg:#e2f3ea; --fall-tx:#146140;
+  --flat:#8091a1; --flat-bg:#e9eef2; --flat-tx:#46586a;
+  --rec:#3f9d8e; --act:#e0a526; --dea:#a63a3a;
+  --focus:#0b66d0;
+  --shadow:0 2px 10px rgba(18,38,58,.2);
+  --ov:1.1rem;
+  --display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{height:100%;-webkit-text-size-adjust:100%}
+body{margin:0;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--mist);color:var(--ink);font:400 1rem/1.5 var(--body)}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:.3rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- Header ---------- */
+.top{flex:none;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem 1.25rem;
+  background:var(--ink);color:#fff;
+  padding:calc(.65rem + env(safe-area-inset-top)) max(1rem,env(safe-area-inset-right)) .65rem max(1rem,env(safe-area-inset-left))}
+.brand{display:flex;align-items:center;gap:.7rem;min-width:0}
+.brand svg{flex:none;width:2.1rem;height:2.1rem}
+.brand h1{margin:0;font:700 clamp(1.05rem,.9rem + .8vw,1.5rem)/1.1 var(--display);letter-spacing:-.01em}
+.brand p{display:none;margin:.15rem 0 0;font-size:.82rem;color:#b9c8d6}
+.top-ctl{display:flex;align-items:center;gap:.6rem;flex:1 1 16rem;justify-content:flex-end;min-width:0}
+.top-ctl select{max-width:19rem;background-color:#fff;color:var(--ink)}
+.note-pill{flex:none;height:2.25rem;padding:0 .85rem;border-radius:999px;border:1px solid rgba(255,255,255,.4);
+  background:transparent;color:#fff;font-size:.8rem;font-weight:600}
+.note-pill:hover{background:rgba(255,255,255,.12)}
+
+select{appearance:none;-webkit-appearance:none;width:100%;min-width:0;height:2.75rem;padding:0 2.1rem 0 .8rem;
+  border:1px solid var(--line);border-radius:.6rem;font-weight:500;text-overflow:ellipsis;cursor:pointer;
+  background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2347596b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right .8rem center/.8rem}
+
+/* ---------- Layout (phones: map on top, detail sheet below) ---------- */
+.app{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);
+  grid-template-rows:clamp(14rem,40vh,26rem) minmax(0,1fr);
+  grid-template-rows:clamp(14rem,40dvh,26rem) minmax(0,1fr)}
+.map-wrap{position:relative;isolation:isolate;min-height:0;background:#dfe7ec}
+#map{position:absolute;inset:0;background:#dfe7ec;font-family:var(--body)}
+
+.panel{position:relative;z-index:2;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  background:var(--card);border-radius:1.25rem 1.25rem 0 0;margin-top:-1.1rem;
+  padding:1.4rem max(1rem,env(safe-area-inset-right)) calc(1.5rem + env(safe-area-inset-bottom)) max(1rem,env(safe-area-inset-left));
+  box-shadow:0 -6px 24px rgba(18,38,58,.14)}
+.panel::before{content:"";display:block;width:2.5rem;height:.28rem;border-radius:9px;background:var(--line);margin:-.7rem auto .9rem}
+
+@media (min-width:860px),(orientation:landscape) and (min-width:560px){
+  :root{--ov:0rem}
+  .app{grid-template-rows:minmax(0,1fr);grid-template-columns:minmax(0,1fr) clamp(21rem,38vw,31rem)}
+  .panel{margin-top:0;border-radius:0;box-shadow:-1px 0 0 var(--line);padding:1.5rem 1.5rem 2rem}
+  .panel::before{display:none}
+}
+@media (min-width:560px){ .brand p{display:block} }
+@media (min-width:600px) and (max-width:859px) and (orientation:portrait){
+  .app{grid-template-rows:clamp(18rem,50vh,40rem) minmax(0,1fr);grid-template-rows:clamp(18rem,50dvh,40rem) minmax(0,1fr)}
+}
+@media (max-height:480px){
+  .brand p{display:none}
+  .top{padding-top:calc(.4rem + env(safe-area-inset-top));padding-bottom:.4rem}
+}
+
+@media (max-width:559px){
+  .top-ctl{flex-basis:100%;justify-content:stretch}
+  .top-ctl select{max-width:none;flex:1}
+}
+
+/* ---------- Map overlays ---------- */
+.map-tools{position:absolute;z-index:1000;top:.75rem;left:.75rem;right:4.1rem;display:flex;gap:.5rem;max-width:25rem}
+.mfield{position:relative;flex:1 1 0;min-width:0}
+.mfield>span{position:absolute;left:.8rem;top:.42rem;font-size:.68rem;font-weight:600;color:var(--ink-3);pointer-events:none}
+.mfield select{height:3rem;padding:1.15rem 1.9rem .2rem .8rem;border:0;border-radius:.8rem;
+  background-color:rgba(255,255,255,.96);box-shadow:var(--shadow);font-weight:600;background-position:right .75rem center}
+.map-ctl{position:absolute;z-index:1000;top:.75rem;right:.75rem;display:flex;flex-direction:column;gap:.5rem;align-items:flex-end}
+.mbtn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;height:2.75rem;min-width:2.75rem;padding:0;
+  border:0;border-radius:999px;background:rgba(255,255,255,.96);box-shadow:var(--shadow);color:var(--ink);font-size:.85rem;font-weight:600}
+.mbtn:hover{background:#fff}
+.mbtn svg{width:1.3rem;height:1.3rem;flex:none}
+.mbtn .lbl{display:none}
+@media (min-width:1000px){ #baseBtn{padding:0 1rem 0 .8rem} #baseBtn .lbl{display:inline} }
+
+.legend{position:absolute;z-index:1000;left:.75rem;bottom:calc(.75rem + var(--ov));max-width:calc(100% - 5rem);
+  padding:.55rem .75rem .6rem;border-radius:.8rem;background:rgba(255,255,255,.96);box-shadow:var(--shadow)}
+.lg-title{font-size:.78rem;font-weight:700;line-height:1.2}
+.lg-title small{font-weight:500;color:var(--ink-3);margin-left:.3rem;font-size:.74rem}
+.lg-bar,.lg-lab{display:grid;grid-template-columns:repeat(var(--n),2.4rem)}
+.lg-bar{height:.6rem;margin:.45rem 0 .2rem;border-radius:.3rem;overflow:hidden}
+.lg-lab span{font-size:.66rem;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.lg-foot{display:flex;align-items:center;gap:.7rem;margin-top:.15rem;font-size:.68rem;color:var(--ink-3)}
+.lg-nd{display:inline-flex;align-items:center;gap:.3rem}
+.lg-nd i{width:.7rem;height:.7rem;border-radius:2px;background:#dde5ea;border:1px solid #c3cfd8}
+
+.map-status{position:absolute;inset:0;z-index:1100;display:grid;place-content:center;justify-items:center;gap:.7rem;
+  padding:1.5rem;text-align:center;font-weight:600;color:var(--ink-2);background:rgba(238,243,246,.86)}
+.map-status[hidden]{display:none}
+.map-status button{height:2.5rem;padding:0 1rem;border:0;border-radius:999px;background:var(--ink);color:#fff;font-weight:600}
+.spin{width:1.6rem;height:1.6rem;border-radius:50%;border:3px solid var(--line);border-top-color:var(--ink);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Leaflet tweaks */
+.leaflet-bottom.leaflet-right{margin-bottom:var(--ov)}
+.leaflet-bar{border:0 !important;border-radius:.8rem !important;box-shadow:var(--shadow) !important;overflow:hidden}
+.leaflet-bar a{width:2.75rem !important;height:2.75rem !important;line-height:2.75rem !important;font-size:1.3rem !important;color:var(--ink) !important}
+.leaflet-control-attribution{font-size:.62rem !important;max-width:70vw}
+.leaflet-tooltip.tip{background:var(--ink);color:#fff;border:0;border-radius:.5rem;padding:.4rem .65rem;box-shadow:var(--shadow);
+  font:500 .8rem/1.3 var(--body);white-space:nowrap}
+.leaflet-tooltip.tip::before{display:none}
+.leaflet-tooltip.tip strong{display:block;font-weight:700}
+.leaflet-interactive{outline:0}
+
+/* ---------- Panel typography ---------- */
+.ov-title,.st-name{margin:0 0 .5rem;font:700 clamp(1.7rem,1.35rem + 1.4vw,2.35rem)/1.05 var(--display);letter-spacing:-.02em;outline:0}
+.lede{max-width:34rem;margin:.25rem 0 1.1rem;color:var(--ink-2)}
+.ov-line{margin:0 0 .5rem;font-size:1.02rem}
+.ov-line b{font:700 1.5rem/1 var(--display);font-variant-numeric:tabular-nums;margin-right:.1rem}
+.sec{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin:1.5rem 0 .6rem;font:650 1.05rem/1.2 var(--display)}
+.linkbtn{border:0;background:none;padding:.35rem .1rem;color:var(--focus);font-size:.85rem;font-weight:600;min-height:2rem}
+.linkbtn:hover{text-decoration:underline}
+
+.rank{list-style:none;margin:0;padding:0}
+.rk{display:grid;grid-template-columns:minmax(6rem,9rem) minmax(0,1fr) auto;align-items:center;gap:.7rem;width:100%;min-height:2.75rem;
+  padding:.3rem .5rem;margin:0;border:0;border-radius:.6rem;background:none;text-align:left}
+.rk:hover{background:var(--mist)}
+.rk-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk-bar{height:.7rem;border-radius:.35rem;background:var(--line-2);overflow:hidden}
+.rk-bar i{display:block;height:100%;border-radius:.35rem}
+.rk-v{font-weight:700;font-variant-numeric:tabular-nums}
+
+.back{display:inline-flex;align-items:center;gap:.25rem;min-height:2.5rem;padding:0 .85rem 0 .5rem;margin:0 0 .8rem -.2rem;
+  border:1px solid var(--line);border-radius:999px;background:#fff;font-size:.85rem;font-weight:600}
+.back:hover{background:var(--mist)}
+.back svg{width:1rem;height:1rem}
+.st-meta{margin:0 0 .9rem;color:var(--ink-3)}
+.pills{display:flex;flex-wrap:wrap;gap:.4rem}
+.pill{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;border-radius:999px;background:var(--flat-bg);color:var(--flat-tx);
+  font-size:.75rem;font-weight:700;white-space:nowrap}
+.pill.up{background:var(--rise-bg);color:var(--rise-tx)}
+.pill.down{background:var(--fall-bg);color:var(--fall-tx)}
+
+.tot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:1.1rem 0 0;border:1px solid var(--line);border-radius:.8rem;overflow:hidden}
+.tot>div{padding:.65rem .8rem}
+.tot>div+div{border-left:1px solid var(--line)}
+.tot dt{font-size:.72rem;color:var(--ink-3)}
+.tot dd{margin:0;font:700 1.35rem/1.2 var(--display);font-variant-numeric:tabular-nums}
+
+/* ---------- Disease cards ---------- */
+.dz{margin:0 0 .6rem;border:1px solid var(--line);border-left:4px solid var(--flat);border-radius:.8rem;background:#fff;overflow:hidden}
+.dz.up{border-left-color:var(--rise)}
+.dz.down{border-left-color:var(--fall)}
+.dz>summary{display:grid;grid-template-columns:minmax(0,1fr) auto auto 1rem;align-items:center;gap:.6rem;min-height:3.6rem;
+  padding:.55rem .8rem .55rem .85rem;list-style:none;cursor:pointer}
+.dz>summary::-webkit-details-marker{display:none}
+.dz>summary::after{content:"";width:.55rem;height:.55rem;margin:-.15rem 0 0 .15rem;border-right:2px solid var(--ink-3);border-bottom:2px solid var(--ink-3);
+  transform:rotate(45deg);transition:transform .2s}
+.dz[open]>summary::after{transform:rotate(-135deg);margin-top:.2rem}
+.dz>summary:hover{background:#f8fafb}
+.dz-name{display:block;font:650 1.05rem/1.2 var(--display)}
+.dz-sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem;color:var(--ink-3)}
+.dz-fig{text-align:right;line-height:1.15}
+.dz-fig b{display:block;font:700 1.1rem/1.15 var(--display);font-variant-numeric:tabular-nums}
+.dz-fig small{font-size:.7rem;color:var(--ink-3)}
+.dz-body{padding:.9rem .85rem 1rem;border-top:1px solid var(--line-2)}
+@media (max-width:420px){
+  .dz>summary{gap:.45rem;padding-left:.7rem}
+  .dz>summary .pill-t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.2rem,1fr));gap:.5rem}
+.stat{padding:.55rem .7rem;border:1px solid var(--line-2);border-radius:.6rem;background:#f8fafb}
+.stat b{display:block;font:700 1.25rem/1.2 var(--display);font-variant-numeric:tabular-nums}
+.stat span{font-size:.72rem;color:var(--ink-3)}
+
+.outcome{display:flex;height:.6rem;margin:.9rem 0 .4rem;border-radius:.35rem;overflow:hidden;background:var(--line-2)}
+.outcome i{display:block;min-width:2px}
+.rec{background:var(--rec)} .act{background:var(--act)} .dea{background:var(--dea)}
+.key{display:flex;flex-wrap:wrap;gap:.2rem 1rem;margin:0 0 .2rem;padding:0;list-style:none;font-size:.76rem;color:var(--ink-2)}
+.key li{display:inline-flex;align-items:center;gap:.35rem}
+.key i{width:.6rem;height:.6rem;border-radius:2px}
+
+.chart{margin:1rem 0;padding:.8rem;border:1px solid var(--line);border-radius:.8rem;background:#fafcfd}
+.chart-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.4rem .8rem;margin-bottom:.2rem}
+.chart-head h4{margin:0;font:650 .92rem/1.2 var(--display)}
+.chart-svg{display:block;width:100%;max-width:30rem;height:auto;margin-inline:auto}
+.chart-svg .bar{transform-box:fill-box;transform-origin:50% 100%;animation:grow .55s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*70ms)}
+.chart-svg .bar.up{fill:#d8664a} .chart-svg .bar.down{fill:#3f9d77} .chart-svg .bar.stable{fill:#8ea0b0}
+.chart-svg .bv{font-size:11px;font-weight:600;fill:var(--ink-2)}
+.chart-svg .by{font-size:11px;fill:var(--ink-3)}
+.chart-svg .axis{stroke:var(--line);stroke-width:1}
+@keyframes grow{from{transform:scaleY(.02);opacity:.3}to{transform:scaleY(1);opacity:1}}
+.tbl-wrap{overflow-x:auto;margin-top:.4rem}
+.tbl{width:100%;border-collapse:collapse;font-size:.74rem;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:.28rem .35rem;border-top:1px solid var(--line-2);text-align:right;white-space:nowrap}
+.tbl thead th{border-top:0;color:var(--ink-3);font-weight:600}
+.tbl tbody th{text-align:left;color:var(--ink-2);font-weight:600}
+.chart-note{margin:.6rem 0 0;font-size:.78rem;line-height:1.45;color:var(--ink-2)}
+
+.facts{margin:0}
+.facts dt{margin-top:.7rem;font-size:.78rem;font-weight:700;color:var(--ink-3)}
+.facts dd{margin:.1rem 0 0}
+.src{display:flex;gap:.5rem;align-items:flex-start;margin:1rem 0 0;font-size:.76rem;line-height:1.4;color:var(--ink-2)}
+.src i{flex:none;width:.6rem;height:.6rem;margin-top:.3rem;border-radius:50%;background:var(--act)}
+.src.ok i{background:var(--fall)}
+
+.about{margin-top:1.5rem;padding:.2rem .9rem;border:1px solid var(--line);border-radius:.8rem;background:#fafcfd;font-size:.84rem;color:var(--ink-2)}
+.about summary{display:flex;align-items:center;min-height:2.75rem;font-weight:700;color:var(--ink);cursor:pointer}
+.about p{margin:.2rem 0 .8rem}
+.about a{color:var(--focus)}
+.about code{font-size:.8rem;background:var(--flat-bg);padding:.05rem .3rem;border-radius:.25rem}
+.empty{padding:1rem;border:1px dashed var(--line);border-radius:.8rem;color:var(--ink-2)}
+
+@media (max-width:400px){
+  .map-tools{right:.75rem}
+  .mfield:first-child{flex-grow:1.35}
+  .map-ctl{top:4.5rem}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important}
+}
+</style>
+</head>
+
+<body>
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="7" fill="#f2b134"/><g stroke="#f2b134" stroke-width="2.4" stroke-linecap="round"><path d="M16 2.8v4.4M16 24.8v4.4M2.8 16h4.4M24.8 16h4.4M6.7 6.7l3.1 3.1M22.2 22.2l3.1 3.1M25.3 6.7l-3.1 3.1M9.8 22.2l-3.1 3.1"/></g><circle cx="16" cy="16" r="2.6" fill="#12263a"/></svg>
+    <div>
+      <h1>India Infectious Disease Map</h1>
+      <p>Cases, trends and prevention for every state and Union Territory</p>
+    </div>
+  </div>
+  <div class="top-ctl">
+    <label class="sr" for="stateSelect">Go to a state or Union Territory</label>
+    <select id="stateSelect"><option value="">Go to a state or Union Territory</option></select>
+    <button type="button" class="note-pill" id="noteBtn">Sample data</button>
+  </div>
+</header>
+
+<main class="app">
+  <section class="map-wrap" aria-label="Map of India">
+    <div id="map"></div>
+
+    <div class="map-tools">
+      <label class="mfield"><span>Disease</span><select id="diseaseSelect"></select></label>
+      <label class="mfield"><span>Measure</span><select id="measureSelect"></select></label>
+    </div>
+
+    <div class="map-ctl">
+      <button type="button" class="mbtn" id="baseBtn" title="Change map background" aria-label="Change map background">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 16.5l9 5 9-5"/></svg>
+        <span class="lbl" id="baseLbl">Light</span>
+      </button>
+      <button type="button" class="mbtn" id="resetBtn" title="Show all of India" aria-label="Show all of India">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="map-status" id="mapStatus"><span class="spin"></span><span>Loading map…</span></div>
+  </section>
+
+  <aside class="panel" id="panel" aria-label="Disease details">
+    <div id="information"></div>
+  </aside>
+</main>
+
+<noscript><p style="padding:1rem">This map needs JavaScript to run.</p></noscript>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* =========================================================
+   DISEASE REFERENCE DATA  (cause, transmission, prevention)
+========================================================= */
+const diseaseData = {
+
+
+"Andhra Pradesh":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Remove stagnant water, mosquito control and personal protection."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Mosquito control, bed nets and early diagnosis."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Avoid mosquito bites and eliminate breeding sites."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination where recommended and mosquito control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food and water",
+prevention:"Safe water, sanitation, food hygiene and vaccination."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Water/soil contaminated with infected animal urine",
+prevention:"Avoid contaminated water and use protective footwear."
+}
+
+],
+
+
+"Arunachal Pradesh":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Mosquito control, bed nets and early treatment."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control and elimination of stagnant water."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Avoid mite-infested vegetation and use protective clothing."
+}
+
+],
+
+
+"Assam":[
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets, mosquito control and early diagnosis."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Remove stagnant water and prevent mosquito bites."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing and avoidance of mite-infested areas."
+},
+
+{
+name:"Cholera",
+cause:"Vibrio cholerae",
+transmission:"Contaminated food and water",
+prevention:"Safe water, sanitation and hand hygiene."
+}
+
+],
+
+
+"Bihar":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control and removal of stagnant water."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and mosquito control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food and water",
+prevention:"Water sanitation, food hygiene and vaccination."
+},
+
+{
+name:"Cholera",
+cause:"Vibrio cholerae",
+transmission:"Contaminated food and water",
+prevention:"Safe drinking water and sanitation."
+}
+
+],
+
+
+"Chhattisgarh":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets, insecticide spraying and early treatment."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Avoid mite-infested areas."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+}
+
+],
+
+
+"Goa":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Remove stagnant water and use mosquito protection."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Vector control and mosquito nets."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Avoid contaminated water and use protective footwear."
+}
+
+],
+
+
+"Gujarat":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Eliminate mosquito breeding sites."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Crimean-Congo Hemorrhagic Fever",
+cause:"CCHF virus",
+transmission:"Ticks and contact with infected animals/blood",
+prevention:"Tick avoidance and infection-control precautions."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and food hygiene."
+}
+
+],
+
+
+"Haryana":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Eliminate stagnant water and control mosquitoes."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Mosquito nets and vector control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe food, water and sanitation."
+}
+
+],
+
+
+"Himachal Pradesh":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing and avoiding mite habitats."
+},
+
+{
+name:"Hepatitis A",
+cause:"Hepatitis A virus",
+transmission:"Fecal-oral route",
+prevention:"Safe water, sanitation and vaccination where indicated."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Food hygiene and safe water."
+}
+
+],
+
+
+"Jharkhand":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing and avoidance of mite-infested vegetation."
+}
+
+],
+
+
+"Karnataka":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Remove stagnant water and prevent mosquito bites."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Mosquito nets and vector control."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Protective footwear and avoiding contaminated water."
+},
+
+{
+name:"Kyasanur Forest Disease",
+cause:"KFD virus",
+transmission:"Ticks",
+prevention:"Tick avoidance and protective clothing."
+}
+
+],
+
+
+"Kerala":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Eliminate mosquito breeding sites."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Protective footwear and avoiding contaminated water."
+},
+
+{
+name:"Nipah virus disease",
+cause:"Nipah virus",
+transmission:"Contact with infected animals or infected people",
+prevention:"Avoid exposure, isolation and infection-control measures."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Mosquito control and early diagnosis."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and food hygiene."
+}
+
+],
+
+
+"Madhya Pradesh":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Eliminate stagnant water."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing."
+}
+
+],
+
+
+"Maharashtra":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Vector control and bed nets."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Avoid contaminated water and use protective footwear."
+},
+
+{
+name:"H1N1 Influenza",
+cause:"Influenza A(H1N1) virus",
+transmission:"Respiratory droplets/aerosols",
+prevention:"Respiratory hygiene and vaccination where recommended."
+}
+
+],
+
+
+"Manipur":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Mosquito control and bed nets."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+},
+
+{
+name:"Cholera",
+cause:"Vibrio cholerae",
+transmission:"Contaminated food/water",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"Meghalaya":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Avoid mite-infested areas."
+}
+
+],
+
+
+"Mizoram":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+}
+
+],
+
+
+"Nagaland":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing."
+}
+
+],
+
+
+"Odisha":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Eliminate stagnant water."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Diarrhoeal diseases",
+cause:"Multiple bacteria, viruses and parasites",
+transmission:"Contaminated food/water",
+prevention:"Safe water, sanitation and hand hygiene."
+}
+
+],
+
+
+"Punjab":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Hepatitis A",
+cause:"Hepatitis A virus",
+transmission:"Fecal-oral route",
+prevention:"Safe water and food hygiene."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"Rajasthan":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Avoid mite-infested areas."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and food hygiene."
+}
+
+],
+
+
+"Sikkim":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"Tamil Nadu":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Eliminate breeding sites."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Protective footwear."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe food and water."
+}
+
+],
+
+
+"Telangana":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and mosquito control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"Tripura":[
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+}
+
+],
+
+
+"Uttar Pradesh":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and vector control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and food hygiene."
+}
+
+],
+
+
+"Uttarakhand":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"West Bengal":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control and removal of stagnant water."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Japanese Encephalitis",
+cause:"Japanese encephalitis virus",
+transmission:"Culex mosquito",
+prevention:"Vaccination and mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+/* =========================================================
+   UNION TERRITORIES
+========================================================= */
+
+
+"Andaman and Nicobar Islands":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and vector control."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Avoid contaminated water."
+}
+
+],
+
+
+"Chandigarh":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"Dadra and Nagar Haveli and Daman and Diu":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and mosquito control."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Protective footwear and avoiding contaminated water."
+}
+
+],
+
+
+"Delhi":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Eliminate stagnant water and control mosquitoes."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and food hygiene."
+},
+
+{
+name:"Hepatitis A",
+cause:"Hepatitis A virus",
+transmission:"Fecal-oral route",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"Jammu and Kashmir":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Scrub Typhus",
+cause:"Orientia tsutsugamushi",
+transmission:"Chigger mite",
+prevention:"Protective clothing."
+},
+
+{
+name:"Hepatitis A",
+cause:"Hepatitis A virus",
+transmission:"Fecal-oral route",
+prevention:"Safe water and sanitation."
+}
+
+],
+
+
+"Ladakh":[
+
+{
+name:"Hepatitis A",
+cause:"Hepatitis A virus",
+transmission:"Fecal-oral route",
+prevention:"Safe water and sanitation."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and food hygiene."
+},
+
+{
+name:"Brucellosis",
+cause:"Brucella species",
+transmission:"Unpasteurized dairy products/contact with infected animals",
+prevention:"Pasteurization and animal-health measures."
+}
+
+],
+
+
+"Lakshadweep":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Leptospirosis",
+cause:"Leptospira bacteria",
+transmission:"Contaminated water/soil",
+prevention:"Avoid contaminated water."
+}
+],
+
+
+"Puducherry":[
+
+{
+name:"Dengue",
+cause:"Dengue virus",
+transmission:"Aedes mosquito",
+prevention:"Mosquito control."
+},
+
+{
+name:"Chikungunya",
+cause:"Chikungunya virus",
+transmission:"Aedes mosquito",
+prevention:"Vector control."
+},
+
+{
+name:"Malaria",
+cause:"Plasmodium species",
+transmission:"Anopheles mosquito",
+prevention:"Bed nets and mosquito control."
+},
+
+{
+name:"Typhoid",
+cause:"Salmonella Typhi",
+transmission:"Contaminated food/water",
+prevention:"Safe water and food hygiene."
+}
+
+]
+
+};
+
+/* =========================================================
+   CASE NUMBERS + 5-YEAR HISTORY  (edit numbers here)
+========================================================= */
+const liveMeta = {
+  source: "Government of India — NCVBDC",
+  period: "2026 provisional data through 28 February 2026",
+  url: "https://ncvbdc.mohfw.gov.in/index4.php?font=Increase&lang=1&level=0&lid=3715&linkid=431"
+};
+
+/* =========================================================
+   CASE DATASET  (edit numbers here)
+   Fields: reported, active, recovered, deaths  (reported = active + recovered + deaths)
+   official:true  -> reported cases & deaths are official NCVBDC figures (Dengue, 2026 provisional
+                     through 28 Feb 2026); active/recovered are still sample values.
+   official:false -> ALL numbers are illustrative SAMPLE data. Replace with real surveillance
+                     data (IDSP / NCVBDC / NCDC / state health dept) before any real use.
+========================================================= */
+const caseDataset = {
+  "Andhra Pradesh":{
+    "Dengue":{"reported":448,"active":19,"recovered":429,"deaths":0,"official":true},
+    "Malaria":{"reported":1174,"active":83,"recovered":1090,"deaths":1,"official":false},
+    "Chikungunya":{"reported":331,"active":21,"recovered":310,"deaths":0,"official":false},
+    "Japanese Encephalitis":{"reported":74,"active":2,"recovered":63,"deaths":9,"official":false},
+    "Typhoid":{"reported":1119,"active":26,"recovered":1091,"deaths":2,"official":false},
+    "Leptospirosis":{"reported":216,"active":10,"recovered":200,"deaths":6,"official":false}
+  },
+  "Arunachal Pradesh":{
+    "Malaria":{"reported":55,"active":4,"recovered":51,"deaths":0,"official":false},
+    "Dengue":{"reported":5,"active":0,"recovered":5,"deaths":0,"official":true},
+    "Japanese Encephalitis":{"reported":2,"active":0,"recovered":1,"deaths":1,"official":false},
+    "Scrub Typhus":{"reported":8,"active":0,"recovered":8,"deaths":0,"official":false}
+  },
+  "Assam":{
+    "Japanese Encephalitis":{"reported":26,"active":1,"recovered":22,"deaths":3,"official":false},
+    "Malaria":{"reported":380,"active":15,"recovered":365,"deaths":0,"official":false},
+    "Dengue":{"reported":28,"active":3,"recovered":25,"deaths":0,"official":true},
+    "Scrub Typhus":{"reported":93,"active":4,"recovered":88,"deaths":1,"official":false},
+    "Cholera":{"reported":74,"active":3,"recovered":70,"deaths":1,"official":false}
+  },
+  "Bihar":{
+    "Dengue":{"reported":54,"active":5,"recovered":49,"deaths":0,"official":true},
+    "Malaria":{"reported":2247,"active":161,"recovered":2085,"deaths":1,"official":false},
+    "Japanese Encephalitis":{"reported":152,"active":7,"recovered":130,"deaths":15,"official":false},
+    "Typhoid":{"reported":1331,"active":57,"recovered":1272,"deaths":2,"official":false},
+    "Cholera":{"reported":303,"active":9,"recovered":293,"deaths":1,"official":false}
+  },
+  "Chhattisgarh":{
+    "Malaria":{"reported":598,"active":31,"recovered":567,"deaths":0,"official":false},
+    "Dengue":{"reported":20,"active":1,"recovered":19,"deaths":0,"official":true},
+    "Scrub Typhus":{"reported":214,"active":8,"recovered":204,"deaths":2,"official":false},
+    "Japanese Encephalitis":{"reported":44,"active":2,"recovered":38,"deaths":4,"official":false}
+  },
+  "Goa":{
+    "Dengue":{"reported":7,"active":1,"recovered":6,"deaths":0,"official":true},
+    "Malaria":{"reported":25,"active":1,"recovered":24,"deaths":0,"official":false},
+    "Chikungunya":{"reported":25,"active":2,"recovered":23,"deaths":0,"official":false},
+    "Leptospirosis":{"reported":4,"active":0,"recovered":3,"deaths":1,"official":false}
+  },
+  "Gujarat":{
+    "Dengue":{"reported":187,"active":13,"recovered":174,"deaths":0,"official":true},
+    "Malaria":{"reported":1832,"active":94,"recovered":1737,"deaths":1,"official":false},
+    "Chikungunya":{"reported":921,"active":78,"recovered":843,"deaths":0,"official":false},
+    "Crimean-Congo Hemorrhagic Fever":{"reported":10,"active":1,"recovered":6,"deaths":3,"official":false},
+    "Typhoid":{"reported":656,"active":29,"recovered":626,"deaths":1,"official":false}
+  },
+  "Haryana":{
+    "Dengue":{"reported":9,"active":1,"recovered":8,"deaths":0,"official":true},
+    "Malaria":{"reported":868,"active":34,"recovered":834,"deaths":0,"official":false},
+    "Chikungunya":{"reported":384,"active":20,"recovered":364,"deaths":0,"official":false},
+    "Typhoid":{"reported":340,"active":19,"recovered":321,"deaths":0,"official":false}
+  },
+  "Himachal Pradesh":{
+    "Dengue":{"reported":14,"active":1,"recovered":13,"deaths":0,"official":true},
+    "Scrub Typhus":{"reported":51,"active":4,"recovered":47,"deaths":0,"official":false},
+    "Hepatitis A":{"reported":85,"active":3,"recovered":82,"deaths":0,"official":false},
+    "Typhoid":{"reported":196,"active":6,"recovered":190,"deaths":0,"official":false}
+  },
+  "Jharkhand":{
+    "Malaria":{"reported":884,"active":66,"recovered":817,"deaths":1,"official":false},
+    "Dengue":{"reported":13,"active":1,"recovered":12,"deaths":0,"official":true},
+    "Japanese Encephalitis":{"reported":23,"active":1,"recovered":20,"deaths":2,"official":false},
+    "Scrub Typhus":{"reported":182,"active":16,"recovered":164,"deaths":2,"official":false}
+  },
+  "Karnataka":{
+    "Dengue":{"reported":560,"active":38,"recovered":522,"deaths":0,"official":true},
+    "Chikungunya":{"reported":944,"active":39,"recovered":905,"deaths":0,"official":false},
+    "Malaria":{"reported":1684,"active":77,"recovered":1606,"deaths":1,"official":false},
+    "Leptospirosis":{"reported":186,"active":12,"recovered":166,"deaths":8,"official":false},
+    "Kyasanur Forest Disease":{"reported":51,"active":4,"recovered":46,"deaths":1,"official":false}
+  },
+  "Kerala":{
+    "Dengue":{"reported":670,"active":47,"recovered":614,"deaths":9,"official":true},
+    "Chikungunya":{"reported":308,"active":16,"recovered":292,"deaths":0,"official":false},
+    "Leptospirosis":{"reported":74,"active":4,"recovered":68,"deaths":2,"official":false},
+    "Nipah virus disease":{"reported":3,"active":0,"recovered":1,"deaths":2,"official":false},
+    "Malaria":{"reported":473,"active":25,"recovered":448,"deaths":0,"official":false},
+    "Typhoid":{"reported":683,"active":26,"recovered":656,"deaths":1,"official":false}
+  },
+  "Madhya Pradesh":{
+    "Malaria":{"reported":1613,"active":91,"recovered":1521,"deaths":1,"official":false},
+    "Dengue":{"reported":94,"active":6,"recovered":88,"deaths":0,"official":true},
+    "Chikungunya":{"reported":492,"active":15,"recovered":477,"deaths":0,"official":false},
+    "Japanese Encephalitis":{"reported":54,"active":2,"recovered":45,"deaths":7,"official":false},
+    "Scrub Typhus":{"reported":510,"active":26,"recovered":481,"deaths":3,"official":false}
+  },
+  "Maharashtra":{
+    "Dengue":{"reported":786,"active":32,"recovered":754,"deaths":0,"official":true},
+    "Malaria":{"reported":1426,"active":91,"recovered":1334,"deaths":1,"official":false},
+    "Chikungunya":{"reported":693,"active":35,"recovered":658,"deaths":0,"official":false},
+    "Leptospirosis":{"reported":349,"active":21,"recovered":319,"deaths":9,"official":false},
+    "H1N1 Influenza":{"reported":785,"active":28,"recovered":730,"deaths":27,"official":false}
+  },
+  "Manipur":{
+    "Malaria":{"reported":83,"active":4,"recovered":79,"deaths":0,"official":false},
+    "Dengue":{"reported":12,"active":1,"recovered":11,"deaths":0,"official":true},
+    "Japanese Encephalitis":{"reported":6,"active":0,"recovered":5,"deaths":1,"official":false},
+    "Cholera":{"reported":7,"active":0,"recovered":7,"deaths":0,"official":false}
+  },
+  "Meghalaya":{
+    "Malaria":{"reported":93,"active":5,"recovered":88,"deaths":0,"official":false},
+    "Dengue":{"reported":7,"active":0,"recovered":7,"deaths":0,"official":true},
+    "Japanese Encephalitis":{"reported":3,"active":0,"recovered":2,"deaths":1,"official":false},
+    "Scrub Typhus":{"reported":26,"active":2,"recovered":24,"deaths":0,"official":false}
+  },
+  "Mizoram":{
+    "Malaria":{"reported":23,"active":1,"recovered":22,"deaths":0,"official":false},
+    "Dengue":{"reported":75,"active":7,"recovered":68,"deaths":0,"official":true},
+    "Scrub Typhus":{"reported":8,"active":0,"recovered":8,"deaths":0,"official":false},
+    "Japanese Encephalitis":{"reported":1,"active":0,"recovered":0,"deaths":1,"official":false}
+  },
+  "Nagaland":{
+    "Malaria":{"reported":52,"active":3,"recovered":49,"deaths":0,"official":false},
+    "Dengue":{"reported":0,"active":0,"recovered":0,"deaths":0,"official":true},
+    "Japanese Encephalitis":{"reported":4,"active":0,"recovered":3,"deaths":1,"official":false},
+    "Scrub Typhus":{"reported":12,"active":1,"recovered":11,"deaths":0,"official":false}
+  },
+  "Odisha":{
+    "Malaria":{"reported":1090,"active":79,"recovered":1010,"deaths":1,"official":false},
+    "Dengue":{"reported":50,"active":5,"recovered":45,"deaths":0,"official":true},
+    "Japanese Encephalitis":{"reported":27,"active":1,"recovered":23,"deaths":3,"official":false},
+    "Chikungunya":{"reported":573,"active":36,"recovered":537,"deaths":0,"official":false},
+    "Diarrhoeal diseases":{"reported":3384,"active":69,"recovered":3313,"deaths":2,"official":false}
+  },
+  "Punjab":{
+    "Dengue":{"reported":14,"active":1,"recovered":13,"deaths":0,"official":true},
+    "Malaria":{"reported":876,"active":30,"recovered":846,"deaths":0,"official":false},
+    "Chikungunya":{"reported":320,"active":16,"recovered":304,"deaths":0,"official":false},
+    "Hepatitis A":{"reported":247,"active":15,"recovered":232,"deaths":0,"official":false},
+    "Typhoid":{"reported":538,"active":18,"recovered":520,"deaths":0,"official":false}
+  },
+  "Rajasthan":{
+    "Malaria":{"reported":1995,"active":122,"recovered":1872,"deaths":1,"official":false},
+    "Dengue":{"reported":120,"active":10,"recovered":110,"deaths":0,"official":true},
+    "Chikungunya":{"reported":627,"active":21,"recovered":606,"deaths":0,"official":false},
+    "Scrub Typhus":{"reported":246,"active":21,"recovered":223,"deaths":2,"official":false},
+    "Typhoid":{"reported":944,"active":53,"recovered":890,"deaths":1,"official":false}
+  },
+  "Sikkim":{
+    "Dengue":{"reported":5,"active":1,"recovered":4,"deaths":0,"official":true},
+    "Scrub Typhus":{"reported":3,"active":0,"recovered":3,"deaths":0,"official":false},
+    "Japanese Encephalitis":{"reported":1,"active":0,"recovered":0,"deaths":1,"official":false},
+    "Typhoid":{"reported":9,"active":0,"recovered":9,"deaths":0,"official":false}
+  },
+  "Tamil Nadu":{
+    "Dengue":{"reported":2873,"active":180,"recovered":2692,"deaths":1,"official":true},
+    "Chikungunya":{"reported":851,"active":69,"recovered":782,"deaths":0,"official":false},
+    "Malaria":{"reported":1394,"active":60,"recovered":1333,"deaths":1,"official":false},
+    "Japanese Encephalitis":{"reported":50,"active":2,"recovered":43,"deaths":5,"official":false},
+    "Leptospirosis":{"reported":203,"active":13,"recovered":185,"deaths":5,"official":false},
+    "Typhoid":{"reported":1626,"active":63,"recovered":1562,"deaths":1,"official":false}
+  },
+  "Telangana":{
+    "Dengue":{"reported":754,"active":41,"recovered":712,"deaths":1,"official":false},
+    "Chikungunya":{"reported":501,"active":17,"recovered":484,"deaths":0,"official":false},
+    "Malaria":{"reported":998,"active":49,"recovered":949,"deaths":0,"official":false},
+    "Japanese Encephalitis":{"reported":48,"active":2,"recovered":42,"deaths":4,"official":false},
+    "Typhoid":{"reported":570,"active":21,"recovered":548,"deaths":1,"official":false}
+  },
+  "Tripura":{
+    "Malaria":{"reported":109,"active":6,"recovered":103,"deaths":0,"official":false},
+    "Dengue":{"reported":173,"active":13,"recovered":160,"deaths":0,"official":false},
+    "Japanese Encephalitis":{"reported":3,"active":0,"recovered":2,"deaths":1,"official":false},
+    "Chikungunya":{"reported":38,"active":2,"recovered":36,"deaths":0,"official":false}
+  },
+  "Uttar Pradesh":{
+    "Dengue":{"reported":1634,"active":150,"recovered":1482,"deaths":2,"official":false},
+    "Malaria":{"reported":1964,"active":70,"recovered":1893,"deaths":1,"official":false},
+    "Japanese Encephalitis":{"reported":152,"active":8,"recovered":123,"deaths":21,"official":false},
+    "Scrub Typhus":{"reported":859,"active":71,"recovered":781,"deaths":7,"official":false},
+    "Typhoid":{"reported":1840,"active":70,"recovered":1768,"deaths":2,"official":false}
+  },
+  "Uttarakhand":{
+    "Dengue":{"reported":407,"active":37,"recovered":370,"deaths":0,"official":false},
+    "Malaria":{"reported":279,"active":15,"recovered":264,"deaths":0,"official":false},
+    "Scrub Typhus":{"reported":69,"active":2,"recovered":66,"deaths":1,"official":false},
+    "Typhoid":{"reported":210,"active":5,"recovered":205,"deaths":0,"official":false}
+  },
+  "West Bengal":{
+    "Dengue":{"reported":2484,"active":234,"recovered":2248,"deaths":2,"official":false},
+    "Malaria":{"reported":1650,"active":42,"recovered":1607,"deaths":1,"official":false},
+    "Japanese Encephalitis":{"reported":134,"active":6,"recovered":118,"deaths":10,"official":false},
+    "Chikungunya":{"reported":1088,"active":37,"recovered":1051,"deaths":0,"official":false},
+    "Typhoid":{"reported":1797,"active":95,"recovered":1701,"deaths":1,"official":false}
+  },
+  "Andaman and Nicobar Islands":{
+    "Dengue":{"reported":7,"active":1,"recovered":6,"deaths":0,"official":false},
+    "Malaria":{"reported":7,"active":0,"recovered":7,"deaths":0,"official":false},
+    "Leptospirosis":{"reported":1,"active":0,"recovered":0,"deaths":1,"official":false}
+  },
+  "Chandigarh":{
+    "Dengue":{"reported":21,"active":2,"recovered":19,"deaths":0,"official":false},
+    "Chikungunya":{"reported":7,"active":0,"recovered":7,"deaths":0,"official":false},
+    "Malaria":{"reported":35,"active":3,"recovered":32,"deaths":0,"official":false},
+    "Typhoid":{"reported":12,"active":1,"recovered":11,"deaths":0,"official":false}
+  },
+  "Dadra and Nagar Haveli and Daman and Diu":{
+    "Dengue":{"reported":26,"active":2,"recovered":24,"deaths":0,"official":true},
+    "Chikungunya":{"reported":17,"active":1,"recovered":16,"deaths":0,"official":false},
+    "Malaria":{"reported":23,"active":2,"recovered":21,"deaths":0,"official":false},
+    "Leptospirosis":{"reported":5,"active":0,"recovered":4,"deaths":1,"official":false}
+  },
+  "Delhi":{
+    "Dengue":{"reported":734,"active":41,"recovered":692,"deaths":1,"official":false},
+    "Chikungunya":{"reported":179,"active":11,"recovered":168,"deaths":0,"official":false},
+    "Malaria":{"reported":402,"active":13,"recovered":389,"deaths":0,"official":false},
+    "Typhoid":{"reported":487,"active":22,"recovered":464,"deaths":1,"official":false},
+    "Hepatitis A":{"reported":93,"active":4,"recovered":89,"deaths":0,"official":false}
+  },
+  "Jammu and Kashmir":{
+    "Dengue":{"reported":17,"active":1,"recovered":16,"deaths":0,"official":true},
+    "Malaria":{"reported":325,"active":23,"recovered":302,"deaths":0,"official":false},
+    "Scrub Typhus":{"reported":58,"active":2,"recovered":56,"deaths":0,"official":false},
+    "Hepatitis A":{"reported":66,"active":4,"recovered":62,"deaths":0,"official":false}
+  },
+  "Ladakh":{
+    "Hepatitis A":{"reported":2,"active":0,"recovered":2,"deaths":0,"official":false},
+    "Typhoid":{"reported":6,"active":0,"recovered":6,"deaths":0,"official":false},
+    "Brucellosis":{"reported":1,"active":0,"recovered":1,"deaths":0,"official":false}
+  },
+  "Lakshadweep":{
+    "Dengue":{"reported":19,"active":1,"recovered":18,"deaths":0,"official":true},
+    "Chikungunya":{"reported":1,"active":0,"recovered":1,"deaths":0,"official":false},
+    "Leptospirosis":{"reported":1,"active":0,"recovered":0,"deaths":1,"official":false}
+  },
+  "Puducherry":{
+    "Dengue":{"reported":186,"active":18,"recovered":168,"deaths":0,"official":true},
+    "Chikungunya":{"reported":26,"active":1,"recovered":25,"deaths":0,"official":false},
+    "Malaria":{"reported":21,"active":1,"recovered":20,"deaths":0,"official":false},
+    "Typhoid":{"reported":38,"active":2,"recovered":36,"deaths":0,"official":false}
+  }
+};
+
+/* =========================================================
+   5-YEAR HISTORY (2021-2025)  -  edit numbers here
+   r = reported cases per year, d = deaths per year (same order as HISTORY_YEARS).
+   ALL values are illustrative SAMPLE data. Replace with real annual figures
+   (IDSP / NCVBDC / NCDC / state health dept) before any real use.
+========================================================= */
+const HISTORY_YEARS = [2021, 2022, 2023, 2024, 2025];
+
+const historyDataset = {
+  "Andhra Pradesh":{
+    "Dengue":{r:[1768,1580,1616,1270,1428],d:[1,1,2,2,1]},
+    "Malaria":{r:[1311,1097,1143,1153,1156],d:[1,1,0,1,1]},
+    "Chikungunya":{r:[217,204,257,296,347],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[95,80,82,83,65],d:[13,5,6,11,6]},
+    "Typhoid":{r:[1408,1255,1069,1145,951],d:[2,1,1,1,1]},
+    "Leptospirosis":{r:[304,251,242,243,198],d:[11,9,7,9,8]}
+  },
+  "Arunachal Pradesh":{
+    "Malaria":{r:[80,78,79,69,59],d:[0,0,0,0,0]},
+    "Dengue":{r:[16,16,17,16,17],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[2,2,2,2,2],d:[1,1,1,1,1]},
+    "Scrub Typhus":{r:[10,9,9,9,9],d:[0,0,0,0,0]}
+  },
+  "Assam":{
+    "Japanese Encephalitis":{r:[19,20,23,23,28],d:[2,3,2,2,2]},
+    "Malaria":{r:[356,377,394,361,328],d:[0,0,0,0,0]},
+    "Dengue":{r:[58,64,77,80,95],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[100,106,103,96,103],d:[1,1,1,1,1]},
+    "Cholera":{r:[96,86,82,77,84],d:[0,0,1,0,0]}
+  },
+  "Bihar":{
+    "Dengue":{r:[213,222,206,217,234],d:[0,0,0,0,0]},
+    "Malaria":{r:[1215,1430,1582,1853,1771],d:[1,1,1,1,1]},
+    "Japanese Encephalitis":{r:[171,180,169,175,161],d:[12,11,19,20,15]},
+    "Typhoid":{r:[857,889,1106,965,1196],d:[1,1,1,1,1]},
+    "Cholera":{r:[347,329,285,279,283],d:[2,2,1,1,2]}
+  },
+  "Chhattisgarh":{
+    "Malaria":{r:[674,614,624,476,498],d:[0,0,0,0,0]},
+    "Dengue":{r:[51,59,61,81,82],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[241,205,206,179,160],d:[2,2,2,1,2]},
+    "Japanese Encephalitis":{r:[22,28,27,34,33],d:[3,4,2,2,4]}
+  },
+  "Goa":{
+    "Dengue":{r:[50,47,38,40,38],d:[0,0,0,0,0]},
+    "Malaria":{r:[14,17,17,18,20],d:[0,0,0,0,0]},
+    "Chikungunya":{r:[25,28,26,24,24],d:[0,0,0,0,0]},
+    "Leptospirosis":{r:[4,4,4,4,4],d:[1,1,1,1,1]}
+  },
+  "Gujarat":{
+    "Dengue":{r:[718,841,841,759,807],d:[1,1,1,1,1]},
+    "Malaria":{r:[1358,1331,1614,1962,2285],d:[1,1,1,1,1]},
+    "Chikungunya":{r:[1040,1081,938,1039,1024],d:[0,0,0,0,0]},
+    "Crimean-Congo Hemorrhagic Fever":{r:[8,9,9,9,8],d:[1,3,3,2,2]},
+    "Typhoid":{r:[523,535,551,705,672],d:[0,1,0,1,1]}
+  },
+  "Haryana":{
+    "Dengue":{r:[41,40,40,45,41],d:[0,0,0,0,0]},
+    "Malaria":{r:[1355,1239,1106,969,986],d:[1,0,1,1,1]},
+    "Chikungunya":{r:[306,365,347,400,514],d:[0,0,0,0,0]},
+    "Typhoid":{r:[319,265,302,329,314],d:[0,0,0,0,0]}
+  },
+  "Himachal Pradesh":{
+    "Dengue":{r:[31,41,42,45,64],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[51,60,59,50,48],d:[1,0,1,0,0]},
+    "Hepatitis A":{r:[111,98,81,91,79],d:[0,0,0,0,0]},
+    "Typhoid":{r:[259,217,190,201,184],d:[0,0,0,0,0]}
+  },
+  "Jharkhand":{
+    "Malaria":{r:[424,557,637,707,931],d:[0,0,0,0,0]},
+    "Dengue":{r:[59,59,56,54,53],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[17,21,21,22,22],d:[2,1,2,3,3]},
+    "Scrub Typhus":{r:[191,187,164,177,197],d:[1,2,1,2,2]}
+  },
+  "Karnataka":{
+    "Dengue":{r:[1783,1811,2321,2451,2766],d:[2,2,3,2,3]},
+    "Chikungunya":{r:[829,874,1006,1143,1054],d:[0,0,0,0,0]},
+    "Malaria":{r:[999,1319,1292,1602,2062],d:[0,1,0,1,1]},
+    "Leptospirosis":{r:[187,191,179,185,224],d:[7,6,7,5,9]},
+    "Kyasanur Forest Disease":{r:[66,59,52,52,42],d:[2,2,2,1,1]}
+  },
+  "Kerala":{
+    "Dengue":{r:[2428,2148,2282,2220,2600],d:[3,2,3,3,3]},
+    "Chikungunya":{r:[217,254,310,348,396],d:[0,0,0,0,0]},
+    "Leptospirosis":{r:[32,43,50,56,55],d:[1,2,2,2,2]},
+    "Nipah virus disease":{r:[3,3,3,3,3],d:[1,1,2,1,1]},
+    "Malaria":{r:[272,332,409,410,547],d:[0,0,0,0,0]},
+    "Typhoid":{r:[346,363,410,535,647],d:[0,0,0,0,1]}
+  },
+  "Madhya Pradesh":{
+    "Malaria":{r:[2145,1798,1597,1597,1527],d:[1,1,1,1,1]},
+    "Dengue":{r:[367,373,344,401,344],d:[0,0,0,0,0]},
+    "Chikungunya":{r:[366,429,397,511,439],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[31,35,45,47,61],d:[3,4,4,4,4]},
+    "Scrub Typhus":{r:[252,308,390,380,496],d:[3,2,3,4,3]}
+  },
+  "Maharashtra":{
+    "Dengue":{r:[3655,3885,3459,3801,3488],d:[3,4,4,5,2]},
+    "Malaria":{r:[684,718,920,1032,1326],d:[0,0,1,0,1]},
+    "Chikungunya":{r:[346,375,408,523,585],d:[0,0,0,0,0]},
+    "Leptospirosis":{r:[420,409,377,316,334],d:[14,7,8,11,8]},
+    "H1N1 Influenza":{r:[429,527,543,591,765],d:[13,22,31,25,33]}
+  },
+  "Manipur":{
+    "Malaria":{r:[61,60,65,78,95],d:[0,0,0,0,0]},
+    "Dengue":{r:[30,34,40,35,39],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[4,4,4,5,5],d:[1,1,1,1,1]},
+    "Cholera":{r:[7,7,7,8,8],d:[0,0,0,0,0]}
+  },
+  "Meghalaya":{
+    "Malaria":{r:[70,83,84,91,105],d:[0,0,0,0,0]},
+    "Dengue":{r:[19,21,22,22,24],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[2,2,3,3,3],d:[1,1,1,1,1]},
+    "Scrub Typhus":{r:[19,19,24,25,27],d:[0,0,0,0,0]}
+  },
+  "Mizoram":{
+    "Malaria":{r:[23,23,20,19,20],d:[0,0,0,0,0]},
+    "Dengue":{r:[332,256,292,234,225],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[5,5,6,5,7],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[1,1,1,1,1],d:[1,1,1,1,1]}
+  },
+  "Nagaland":{
+    "Malaria":{r:[23,28,33,39,39],d:[0,0,0,0,0]},
+    "Dengue":{r:[0,0,0,0,0],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[3,3,3,3,3],d:[1,1,1,1,1]},
+    "Scrub Typhus":{r:[20,16,17,16,15],d:[0,0,0,0,0]}
+  },
+  "Odisha":{
+    "Malaria":{r:[675,742,878,956,1259],d:[0,0,1,1,1]},
+    "Dengue":{r:[101,109,133,153,161],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[31,32,29,27,29],d:[3,4,3,2,4]},
+    "Chikungunya":{r:[638,635,714,586,629],d:[0,0,0,0,0]},
+    "Diarrhoeal diseases":{r:[3774,3725,3810,3418,4007],d:[1,2,2,1,2]}
+  },
+  "Punjab":{
+    "Dengue":{r:[61,56,60,60,51],d:[0,0,0,0,0]},
+    "Malaria":{r:[912,855,869,861,838],d:[1,1,0,0,0]},
+    "Chikungunya":{r:[298,324,365,339,368],d:[0,0,0,0,0]},
+    "Hepatitis A":{r:[299,283,248,274,269],d:[1,1,1,1,0]},
+    "Typhoid":{r:[286,325,396,407,438],d:[0,0,0,0,0]}
+  },
+  "Rajasthan":{
+    "Malaria":{r:[1507,1428,1539,1982,2019],d:[1,1,1,1,1]},
+    "Dengue":{r:[340,372,388,400,432],d:[0,0,0,0,0]},
+    "Chikungunya":{r:[543,545,634,696,758],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[181,172,195,247,263],d:[2,1,2,3,1]},
+    "Typhoid":{r:[969,890,1087,953,1217],d:[1,1,1,1,1]}
+  },
+  "Sikkim":{
+    "Dengue":{r:[17,16,19,17,18],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[2,3,3,3,4],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[1,1,1,1,1],d:[1,1,1,1,1]},
+    "Typhoid":{r:[6,7,8,8,10],d:[0,0,0,0,0]}
+  },
+  "Tamil Nadu":{
+    "Dengue":{r:[8853,9275,9733,10569,13802],d:[10,10,10,8,10]},
+    "Chikungunya":{r:[511,658,647,702,713],d:[0,0,0,0,0]},
+    "Malaria":{r:[2367,2097,1890,1611,1553],d:[2,1,1,1,1]},
+    "Japanese Encephalitis":{r:[74,56,51,46,41],d:[7,5,5,4,4]},
+    "Leptospirosis":{r:[171,193,169,174,179],d:[4,5,6,6,6]},
+    "Typhoid":{r:[1228,1222,1355,1407,1374],d:[1,1,2,2,1]}
+  },
+  "Telangana":{
+    "Dengue":{r:[410,500,480,574,614],d:[0,1,1,0,1]},
+    "Chikungunya":{r:[935,768,736,551,537],d:[0,0,0,0,0]},
+    "Malaria":{r:[1522,1386,1433,1350,1169],d:[1,1,0,1,0]},
+    "Japanese Encephalitis":{r:[52,54,59,51,60],d:[3,4,6,5,4]},
+    "Typhoid":{r:[344,391,501,507,537],d:[0,1,1,0,1]}
+  },
+  "Tripura":{
+    "Malaria":{r:[153,163,133,103,109],d:[0,0,0,0,0]},
+    "Dengue":{r:[97,118,125,138,200],d:[0,0,0,0,0]},
+    "Japanese Encephalitis":{r:[4,3,3,3,2],d:[1,1,1,1,1]},
+    "Chikungunya":{r:[50,49,38,41,37],d:[0,0,0,0,0]}
+  },
+  "Uttar Pradesh":{
+    "Dengue":{r:[1672,1450,1337,1560,1426],d:[2,1,1,1,1]},
+    "Malaria":{r:[2739,2293,2301,1668,1766],d:[2,1,1,1,1]},
+    "Japanese Encephalitis":{r:[166,162,141,151,176],d:[23,14,11,12,16]},
+    "Scrub Typhus":{r:[1237,1224,1117,973,913],d:[8,6,7,5,8]},
+    "Typhoid":{r:[1485,1550,1738,1822,2169],d:[1,1,2,2,3]}
+  },
+  "Uttarakhand":{
+    "Dengue":{r:[388,433,407,410,473],d:[0,0,1,1,1]},
+    "Malaria":{r:[242,267,279,247,299],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[79,65,63,65,51],d:[1,1,1,1,1]},
+    "Typhoid":{r:[277,229,239,231,198],d:[0,0,0,0,0]}
+  },
+  "West Bengal":{
+    "Dengue":{r:[3353,3630,3214,3267,2805],d:[4,5,3,3,2]},
+    "Malaria":{r:[2260,2049,1882,1538,1288],d:[1,1,1,1,1]},
+    "Japanese Encephalitis":{r:[190,209,189,164,135],d:[14,28,24,22,14]},
+    "Chikungunya":{r:[753,803,1049,939,1073],d:[0,0,0,0,0]},
+    "Typhoid":{r:[1586,1866,1828,2234,1924],d:[1,2,2,3,3]}
+  },
+  "Andaman and Nicobar Islands":{
+    "Dengue":{r:[5,6,7,8,9],d:[0,0,0,0,0]},
+    "Malaria":{r:[4,4,4,6,6],d:[0,0,0,0,0]},
+    "Leptospirosis":{r:[1,1,1,1,1],d:[1,1,1,1,1]}
+  },
+  "Chandigarh":{
+    "Dengue":{r:[15,20,20,25,22],d:[0,0,0,0,0]},
+    "Chikungunya":{r:[5,5,6,6,6],d:[0,0,0,0,0]},
+    "Malaria":{r:[34,30,32,31,27],d:[0,0,0,0,0]},
+    "Typhoid":{r:[6,8,9,9,12],d:[0,0,0,0,0]}
+  },
+  "Dadra and Nagar Haveli and Daman and Diu":{
+    "Dengue":{r:[92,97,87,97,93],d:[0,0,0,0,0]},
+    "Chikungunya":{r:[23,17,16,17,16],d:[0,0,0,0,0]},
+    "Malaria":{r:[32,27,26,25,21],d:[0,0,0,0,0]},
+    "Leptospirosis":{r:[3,4,5,5,6],d:[1,1,1,1,1]}
+  },
+  "Delhi":{
+    "Dengue":{r:[421,468,627,610,811],d:[1,1,1,1,1]},
+    "Chikungunya":{r:[92,105,123,144,162],d:[0,0,0,0,0]},
+    "Malaria":{r:[226,239,319,308,305],d:[0,0,0,0,0]},
+    "Typhoid":{r:[564,530,527,418,443],d:[0,1,0,0,1]},
+    "Hepatitis A":{r:[58,78,92,105,104],d:[0,0,0,0,0]}
+  },
+  "Jammu and Kashmir":{
+    "Dengue":{r:[81,86,74,69,64],d:[0,0,0,0,0]},
+    "Malaria":{r:[254,246,266,333,305],d:[0,0,0,0,0]},
+    "Scrub Typhus":{r:[46,55,54,54,57],d:[0,0,0,1,0]},
+    "Hepatitis A":{r:[78,72,80,78,79],d:[0,0,0,0,0]}
+  },
+  "Ladakh":{
+    "Hepatitis A":{r:[2,2,2,2,2],d:[0,0,0,0,0]},
+    "Typhoid":{r:[5,5,4,5,5],d:[0,0,0,0,0]},
+    "Brucellosis":{r:[1,1,1,1,1],d:[0,0,0,0,0]}
+  },
+  "Lakshadweep":{
+    "Dengue":{r:[98,103,92,81,68],d:[0,0,0,0,0]},
+    "Chikungunya":{r:[1,1,1,1,1],d:[0,0,0,0,0]},
+    "Leptospirosis":{r:[1,1,1,1,1],d:[1,1,1,1,1]}
+  },
+  "Puducherry":{
+    "Dengue":{r:[401,417,545,596,666],d:[0,0,1,1,1]},
+    "Chikungunya":{r:[25,30,27,26,25],d:[0,0,0,0,0]},
+    "Malaria":{r:[15,17,17,18,21],d:[0,0,0,0,0]},
+    "Typhoid":{r:[52,52,53,43,51],d:[0,0,0,0,0]}
+  }
+};
+
+
+const INDIA_GEOJSON = "https://raw.githubusercontent.com/iamaanahmad/GeoJson-of-Indian-States/master/indian-states.geojson";
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+const MEASURES = {
+  reported:{label:"Reported cases", short:"Reported", noun:"reported cases", key:"reported", hist:"r"},
+  active:  {label:"Active cases",   short:"Active", noun:"active cases",   key:"active",   hist:"r"},
+  deaths:  {label:"Deaths",         short:"Deaths", noun:"deaths",         key:"deaths",   hist:"d"}
+};
+const RAMP = ["#dcefee","#9fd0cf","#55a3b0","#23729a","#143f73"];
+const NO_DATA = "#dde5ea";
+const INK = "#0b1b2b";
+const UT_NAMES = new Set(["Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli and Daman and Diu","Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry"]);
+const DOT_ALWAYS = new Set(["Lakshadweep","Andaman and Nicobar Islands","Delhi","Chandigarh","Puducherry","Dadra and Nagar Haveli and Daman and Diu","Goa","Sikkim"]);
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+const BASEMAPS = {
+  light:    {name:"Light",     url:ESRI+"Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", fill:.82, opts:{maxNativeZoom:16,maxZoom:18,attribution:"Tiles &copy; Esri"}},
+  terrain:  {name:"Terrain",   url:ESRI+"World_Terrain_Base/MapServer/tile/{z}/{y}/{x}",           fill:.72, opts:{maxNativeZoom:13,maxZoom:18,attribution:"Tiles &copy; Esri"}},
+  satellite:{name:"Satellite", url:ESRI+"World_Imagery/MapServer/tile/{z}/{y}/{x}",                fill:.6,  opts:{maxNativeZoom:17,maxZoom:18,attribution:"Tiles &copy; Esri"}}
+};
+
+const view = {disease:"all", measure:"reported", selected:null, basemap:"light", breaks:[]};
+
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => Number(n).toLocaleString("en-IN");
+/* Compact numbers: 1.2K, 3.4L (lakh), 2.1Cr (crore) */
+function fmtShort(n){
+  const trim = x => String(Math.round(x*10)/10);
+  if(n < 1000) return String(n);
+  if(n < 100000) return trim(n/1000) + "K";
+  if(n < 10000000) return trim(n/100000) + "L";
+  return trim(n/10000000) + "Cr";
+}
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const el = {
+  panel:$("#panel"), info:$("#information"), stateSel:$("#stateSelect"), disSel:$("#diseaseSelect"),
+  meaSel:$("#measureSelect"), legend:$("#legend"), status:$("#mapStatus"), baseBtn:$("#baseBtn"),
+  baseLbl:$("#baseLbl"), resetBtn:$("#resetBtn"), noteBtn:$("#noteBtn")
+};
+
+/* =========================================================
+   NAMES
+========================================================= */
+function normalizeStateName(name){
+  if(!name) return "";
+  const D = "Dadra and Nagar Haveli and Daman and Diu";
+  const A = "Andaman and Nicobar Islands";
+  const map = {
+    "nct of delhi":"Delhi","delhi":"Delhi","new delhi":"Delhi",
+    "jammu & kashmir":"Jammu and Kashmir","jammu and kashmir":"Jammu and Kashmir",
+    "andaman & nicobar":A,"andaman & nicobar islands":A,"andaman and nicobar":A,"andaman and nicobar islands":A,
+    "dadra and nagar haveli and daman and diu":D,"dadra & nagar haveli and daman & diu":D,
+    "dadra and nagar haveli":D,"dadra & nagar haveli":D,"daman and diu":D,"daman & diu":D,
+    "pondicherry":"Puducherry","puducherry":"Puducherry","orissa":"Odisha","uttaranchal":"Uttarakhand",
+    "chattisgarh":"Chhattisgarh","arunanchal pradesh":"Arunachal Pradesh","telengana":"Telangana"
+  };
+  const n = String(name).trim();
+  return map[n.toLowerCase()] || n;
+}
+function nameOf(feature){
+  const p = (feature && feature.properties) || {};
+  return normalizeStateName(p.name || p.NAME || p.st_nm || p.ST_NM || p.shapeName);
+}
+
+const stateNames = Object.keys(diseaseData).sort((a,b) => a.localeCompare(b));
+const diseaseNames = (function(){
+  const count = {};
+  Object.values(diseaseData).forEach(list => list.forEach(d => { count[d.name] = (count[d.name]||0) + 1; }));
+  return Object.keys(count).sort((a,b) => count[b]-count[a] || a.localeCompare(b));
+})();
+
+/* =========================================================
+   VALUES, BREAKS, COLOURS
+========================================================= */
+function valueFor(st){
+  const rows = caseDataset[st];
+  if(!rows) return null;
+  const key = MEASURES[view.measure].key;
+  if(view.disease === "all"){
+    const names = Object.keys(rows);
+    if(!names.length) return null;
+    return names.reduce((t,n) => t + rows[n][key], 0);
+  }
+  return rows[view.disease] ? rows[view.disease][key] : null;
+}
+function computeBreaks(){
+  const vals = stateNames.map(valueFor).filter(v => v != null).sort((a,b) => a-b);
+  if(vals.length < 2){ view.breaks = []; return; }
+  const qs = [.2,.4,.6,.8].map(q => vals[Math.floor(q*(vals.length-1))]);
+  view.breaks = Array.from(new Set(qs)).filter(b => b > 0);
+}
+function classOf(v){
+  if(v == null) return -1;
+  let i = 0;
+  while(i < view.breaks.length && v >= view.breaks[i]) i++;
+  return i;
+}
+function colorForClass(i){
+  const n = view.breaks.length + 1;
+  return n === 1 ? RAMP[3] : RAMP[Math.round(i*(RAMP.length-1)/(n-1))];
+}
+function colorOf(v){ const c = classOf(v); return c < 0 ? NO_DATA : colorForClass(c); }
+
+function updateLegend(){
+  const m = MEASURES[view.measure], n = view.breaks.length + 1;
+  let sw = "", lb = "";
+  for(let i=0;i<n;i++){
+    sw += '<i style="background:'+colorForClass(i)+'"></i>';
+    lb += "<span>"+fmtShort(i === 0 ? 0 : view.breaks[i-1])+"</span>";
+  }
+  const gap = stateNames.some(s => valueFor(s) == null);
+  el.legend.innerHTML =
+    '<div class="lg-title">'+m.label+"<small>"+(view.disease==="all" ? "All diseases" : esc(view.disease))+"</small></div>"+
+    '<div class="lg-bar" style="--n:'+n+'">'+sw+"</div>"+
+    '<div class="lg-lab" style="--n:'+n+'">'+lb+"</div>"+
+    '<div class="lg-foot"><span>Darker shades mean more</span>'+(gap ? '<span class="lg-nd"><i></i>No data</span>' : "")+"</div>";
+}
+
+/* =========================================================
+   TRENDS
+========================================================= */
+function trendOf(series){
+  const n = series.length, mean = series.reduce((a,b) => a+b, 0)/n;
+  if(mean === 0) return {pct:0, dir:"stable"};
+  const xm = (n-1)/2;
+  let num = 0, den = 0;
+  series.forEach((y,i) => { num += (i-xm)*(y-mean); den += (i-xm)*(i-xm); });
+  const pct = (num/den)/mean*100;
+  return {pct:pct, dir: pct > 5 ? "up" : pct < -5 ? "down" : "stable"};
+}
+function changePct(a,b){
+  if(a === 0) return b === 0 ? "0%" : "n/a";
+  const c = (b-a)/a*100;
+  return (c > 0 ? "+" : c < 0 ? "−" : "") + Math.abs(c).toFixed(1) + "%";
+}
+const WORD = {up:"Rising", down:"Falling", stable:"Steady"};
+const ARROW = {up:"▲", down:"▼", stable:"►"};
+function pillHtml(dir, pct){
+  const val = (pct > 0 ? "+" : pct < 0 ? "−" : "") + Math.abs(pct).toFixed(1) + "%/yr";
+  return '<span class="pill '+dir+'" title="'+WORD[dir]+", "+val+'"><span aria-hidden="true">'+ARROW[dir]+'</span><span class="pill-t">'+WORD[dir]+" "+val+"</span></span>";
+}
+function barChart(vals, dir, label){
+  const W = 320, H = 132, top = 22, base = 104, bw = 40;
+  const gap = (W - bw*vals.length)/(vals.length+1), max = Math.max.apply(null, vals.concat([1]));
+  let s = "";
+  vals.forEach((v,i) => {
+    const h = Math.max(v > 0 ? 3 : 1, v/max*(base-top)), x = gap + i*(bw+gap), y = base - h, cx = (x+bw/2).toFixed(1);
+    s += '<g style="--i:'+i+'"><rect class="bar '+dir+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw+'" height="'+h.toFixed(1)+'" rx="4"/>'+
+         '<text class="bv" x="'+cx+'" y="'+(y-5).toFixed(1)+'" text-anchor="middle">'+fmtShort(v)+"</text>"+
+         '<text class="by" x="'+cx+'" y="122" text-anchor="middle">'+HISTORY_YEARS[i]+"</text></g>";
+  });
+  s += '<line class="axis" x1="8" x2="'+(W-8)+'" y1="'+base+'" y2="'+base+'"/>';
+  return '<svg class="chart-svg" viewBox="0 0 '+W+" "+H+'" role="img" aria-label="'+esc(label)+'">'+s+"</svg>";
+}
+function trendBlock(h){
+  const t = trendOf(h.r), td = trendOf(h.d), L = h.r.length - 1;
+  const yrs = HISTORY_YEARS.map(y => "<th scope=\"col\">"+y+"</th>").join("");
+  const row = (name, arr) => '<tr><th scope="row">'+name+"</th>"+arr.map(v => "<td>"+fmt(v)+"</td>").join("")+"</tr>";
+  const label = "Reported cases by year: " + HISTORY_YEARS.map((y,i) => y+" "+fmt(h.r[i])).join(", ");
+  return '<section class="chart" aria-label="Five-year trend">'+
+    '<div class="chart-head"><h4>Reported cases, '+HISTORY_YEARS[0]+"–"+HISTORY_YEARS[L]+"</h4>"+pillHtml(t.dir, t.pct)+"</div>"+
+    barChart(h.r, t.dir, label)+
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th scope="col"><span class="sr">Measure</span></th>'+yrs+"</tr></thead><tbody>"+
+    row("Cases", h.r)+row("Deaths", h.d)+"</tbody></table></div>"+
+    '<p class="chart-note">Cases are <b>'+changePct(h.r[L-1], h.r[L])+"</b> on "+HISTORY_YEARS[L-1]+" and <b>"+changePct(h.r[0], h.r[L])+"</b> on "+HISTORY_YEARS[0]+
+    ". Deaths are "+WORD[td.dir].toLowerCase()+". These yearly figures are sample data.</p></section>";
+}
+
+/* =========================================================
+   PANEL: STATE
+========================================================= */
+function stat(label, value){ return '<div class="stat"><b>'+value+"</b><span>"+label+"</span></div>"; }
+
+function outcomeBar(s){
+  if(!s.reported) return "";
+  const p = v => v/s.reported*100;
+  const seg = (cls, v, name) => v > 0 ? '<i class="'+cls+'" style="width:'+Math.max(p(v),1.2).toFixed(2)+'%" title="'+name+": "+fmt(v)+'"></i>' : "";
+  const aria = "Of "+fmt(s.reported)+" cases, "+p(s.recovered).toFixed(1)+"% recovered, "+p(s.active).toFixed(1)+"% are active and "+p(s.deaths).toFixed(1)+"% died";
+  return '<div class="outcome" role="img" aria-label="'+aria+'">'+seg("rec",s.recovered,"Recovered")+seg("act",s.active,"Active")+seg("dea",s.deaths,"Deaths")+"</div>"+
+    '<ul class="key"><li><i class="rec"></i>Recovered '+p(s.recovered).toFixed(0)+'%</li><li><i class="act"></i>Active '+p(s.active).toFixed(0)+
+    '%</li><li><i class="dea"></i>Deaths '+p(s.deaths).toFixed(1)+"%</li></ul>";
+}
+
+function diseaseCard(stateName, d, open){
+  const s = caseDataset[stateName] && caseDataset[stateName][d.name];
+  const h = historyDataset[stateName] && historyDataset[stateName][d.name];
+  const t = h ? trendOf(h.r) : null;
+  const dir = t ? t.dir : "stable";
+  let body = "";
+  if(s){
+    const rate = s.reported ? s.deaths/s.reported*100 : 0;
+    body += '<div class="stats">'+stat("Reported cases",fmt(s.reported))+stat("Active cases",fmt(s.active))+stat("Recovered",fmt(s.recovered))+
+            stat("Deaths",fmt(s.deaths))+stat("Death ratio",rate.toFixed(2)+"%")+"</div>"+outcomeBar(s);
+  }
+  if(h) body += trendBlock(h);
+  body += '<dl class="facts"><dt>Caused by</dt><dd>'+esc(d.cause)+"</dd><dt>How it spreads</dt><dd>"+esc(d.transmission)+
+          "</dd><dt>How to prevent it</dt><dd>"+esc(d.prevention)+"</dd></dl>";
+  body += s && s.official
+    ? '<p class="src ok"><i></i><span>Reported cases and deaths are official NCVBDC figures ('+esc(liveMeta.period)+"). Active and recovered counts are sample values.</span></p>"
+    : '<p class="src"><i></i><span>Sample data. Replace it with official figures before relying on it.</span></p>';
+  return '<details class="dz '+dir+'"'+(open ? " open" : "")+"><summary>"+
+    '<span><span class="dz-name">'+esc(d.name)+'</span><span class="dz-sub">'+esc(d.cause)+"</span></span>"+
+    '<span class="dz-fig"><b>'+(s ? fmt(s.reported) : "–")+"</b><small>reported</small></span>"+
+    (t ? pillHtml(t.dir, t.pct) : "<span></span>")+"</summary>"+
+    '<div class="dz-body">'+body+"</div></details>";
+}
+
+function aboutHtml(){
+  return '<details class="about" id="about"><summary>About this data</summary>'+
+    "<p>Dengue reported cases and deaths are official figures from "+esc(liveMeta.source)+" ("+esc(liveMeta.period)+"). Every other number, all active and recovered counts, and the whole 2021–2025 history are <b>sample data</b> stored in <code>caseDataset</code> and <code>historyDataset</code>. Replace them with real surveillance data before using this for decisions.</p>"+
+    '<p><a href="'+liveMeta.url+'" target="_blank" rel="noopener">Official source: '+esc(liveMeta.source)+"</a></p>"+
+    "<p>State boundaries are indicative and may not match official maps.</p></details>";
+}
+
+function renderState(name){
+  const diseases = diseaseData[name] || [];
+  const rows = caseDataset[name] || {};
+  const tot = {reported:0, active:0, deaths:0};
+  const counts = {up:0, down:0, stable:0};
+  diseases.forEach(d => {
+    const s = rows[d.name];
+    if(s){ tot.reported += s.reported; tot.active += s.active; tot.deaths += s.deaths; }
+    const h = historyDataset[name] && historyDataset[name][d.name];
+    if(h) counts[trendOf(h.r).dir]++;
+  });
+  const kind = UT_NAMES.has(name) ? "Union Territory" : "State";
+  let html = '<button type="button" class="back" data-act="reset"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>All of India</button>'+
+    '<h2 class="st-name" id="stName" tabindex="-1">'+esc(name)+"</h2>";
+  if(!diseases.length){
+    html += '<p class="st-meta">'+kind+'</p><div class="empty">No disease data has been added for '+esc(name)+" yet.</div>"+aboutHtml();
+    el.info.innerHTML = html;
+    return;
+  }
+  html += '<p class="st-meta">'+kind+" with "+diseases.length+" tracked diseases</p>";
+  html += '<div class="pills">'+
+    (counts.up ? '<span class="pill up">▲ '+counts.up+" rising</span>" : "")+
+    (counts.down ? '<span class="pill down">▼ '+counts.down+" falling</span>" : "")+
+    (counts.stable ? '<span class="pill">► '+counts.stable+" steady</span>" : "")+"</div>";
+  html += '<dl class="tot"><div><dt>Reported cases</dt><dd>'+fmt(tot.reported)+"</dd></div><div><dt>Active cases</dt><dd>"+fmt(tot.active)+
+          "</dd></div><div><dt>Deaths</dt><dd>"+fmt(tot.deaths)+"</dd></div></dl>";
+  html += '<div class="sec"><h3 style="margin:0;font:inherit">Diseases</h3><button type="button" class="linkbtn" data-act="toggle-all">Expand all</button></div>';
+  diseases.forEach((d,i) => { html += diseaseCard(name, d, i === 0); });
+  html += aboutHtml();
+  el.info.innerHTML = html;
+}
+
+/* =========================================================
+   PANEL: OVERVIEW
+========================================================= */
+function nationalSeries(){
+  const key = MEASURES[view.measure].hist, out = HISTORY_YEARS.map(() => 0);
+  stateNames.forEach(st => {
+    const rows = historyDataset[st];
+    if(!rows) return;
+    Object.keys(rows).forEach(dn => {
+      if(view.disease !== "all" && dn !== view.disease) return;
+      rows[dn][key].forEach((v,i) => { out[i] += v; });
+    });
+  });
+  return out;
+}
+
+function renderOverview(){
+  const m = MEASURES[view.measure];
+  const vals = stateNames.map(n => ({n:n, v:valueFor(n)})).filter(x => x.v != null).sort((a,b) => b.v - a.v);
+  const total = vals.reduce((a,x) => a + x.v, 0);
+  const top = vals.slice(0,5), max = top.length ? Math.max(top[0].v,1) : 1;
+  const scope = view.disease === "all" ? "across all tracked diseases" : "of "+esc(view.disease);
+  let html = '<h2 class="ov-title" id="stName" tabindex="-1">India at a glance</h2>'+
+    '<p class="lede">Tap a state or Union Territory on the map, or pick one from the list at the top, to see its cases, five-year trend and how to prevent each disease.</p>'+
+    '<p class="ov-line"><b>'+fmt(total)+"</b> "+m.noun+" "+scope+" in "+vals.length+" states and Union Territories.</p>";
+
+  html += '<div class="sec"><h3 style="margin:0;font:inherit">Highest '+m.label.toLowerCase()+"</h3></div><ul class=\"rank\">";
+  top.forEach(x => {
+    html += '<li><button type="button" class="rk" data-state="'+esc(x.n)+'"><span class="rk-n">'+esc(x.n)+
+      '</span><span class="rk-bar"><i style="width:'+Math.max(x.v/max*100,3).toFixed(1)+"%;background:"+colorOf(x.v)+'"></i></span><span class="rk-v">'+fmt(x.v)+"</span></button></li>";
+  });
+  html += "</ul>";
+
+  const series = nationalSeries(), t = trendOf(series), L = series.length - 1;
+  const what = view.measure === "deaths" ? "Deaths" : "Reported cases";
+  html += '<div class="sec"><h3 style="margin:0;font:inherit">National trend</h3></div><section class="chart" aria-label="National five-year trend">'+
+    '<div class="chart-head"><h4>'+what+", "+HISTORY_YEARS[0]+"–"+HISTORY_YEARS[L]+"</h4>"+pillHtml(t.dir, t.pct)+"</div>"+
+    barChart(series, t.dir, what+" by year: "+HISTORY_YEARS.map((y,i) => y+" "+fmt(series[i])).join(", "))+
+    '<p class="chart-note">'+(view.measure === "active" ? "Yearly history covers reported cases and deaths, so this chart shows reported cases. " : "")+
+    "Sum of all states and Union Territories in the sample data.</p></section>";
+  html += aboutHtml();
+  el.info.innerHTML = html;
+}
+
+/* =========================================================
+   MAP
+========================================================= */
+let map = null, geojsonLayer = null, tile = null;
+const layersByName = {}, dots = {};
+const fillOp = () => BASEMAPS[view.basemap].fill;
+
+function styleFor(name){
+  const v = valueFor(name), sel = view.selected === name;
+  return {fillColor:colorOf(v), fillOpacity: sel ? Math.min(fillOp()+.14,.96) : fillOp(), color: sel ? INK : "#ffffff", weight: sel ? 3 : 1, opacity:1};
+}
+function tipHtml(name){
+  const v = valueFor(name);
+  return "<strong>"+esc(name)+"</strong><span>"+MEASURES[view.measure].label+": "+(v == null ? "no data" : fmt(v))+"</span>";
+}
+function applyStyles(){
+  Object.keys(layersByName).forEach(n => layersByName[n].forEach(l => l.setStyle(styleFor(n))));
+  Object.keys(dots).forEach(n => {
+    const sel = view.selected === n;
+    dots[n].setStyle({fillColor:colorOf(valueFor(n)), color: sel ? INK : "#ffffff", weight: sel ? 3 : 2});
+  });
+  if(view.selected && layersByName[view.selected]) layersByName[view.selected].forEach(l => l.bringToFront());
+}
+function groupBounds(name){
+  let b = null;
+  (layersByName[name] || []).forEach(l => {
+    const lb = l.getBounds();
+    if(!b) b = L.latLngBounds(lb.getSouthWest(), lb.getNorthEast()); else b.extend(lb);
+  });
+  return b;
+}
+function zoomTo(name){
+  const b = groupBounds(name);
+  if(!b || !map) return;
+  const small = window.matchMedia("(max-width:859px)").matches;
+  map.fitBounds(b, {paddingTopLeft:[16, small ? 96 : 84], paddingBottomRight:[16, small ? 48 : 24], maxZoom: DOT_ALWAYS.has(name) ? 8 : 7});
+}
+function fitIndia(){
+  if(map && geojsonLayer) map.fitBounds(geojsonLayer.getBounds(), {paddingTopLeft:[8,70], paddingBottomRight:[8,8]});
+}
+
+function setBasemap(key){
+  view.basemap = key;
+  const b = BASEMAPS[key];
+  if(tile) map.removeLayer(tile);
+  tile = L.tileLayer(b.url, b.opts).addTo(map);
+  tile.bringToBack();
+  el.baseLbl.textContent = b.name;
+  el.baseBtn.title = "Map background: " + b.name + ". Tap to change.";
+  el.baseBtn.setAttribute("aria-label", el.baseBtn.title);
+  applyStyles();
+}
+
+function buildLayers(data){
+  geojsonLayer = L.geoJSON(data, {
+    style: f => styleFor(nameOf(f)),
+    onEachFeature: (f, layer) => {
+      const name = nameOf(f);
+      (layersByName[name] = layersByName[name] || []).push(layer);
+      layer.bindTooltip(() => tipHtml(name), {sticky:true, className:"tip", direction:"top"});
+      layer.on({
+        click: () => selectState(name),
+        mouseover: () => {
+          if(view.selected !== name) layer.setStyle({weight:2.5, color:INK, fillOpacity:Math.min(fillOp()+.1,.95)});
+          layer.bringToFront();
+        },
+        mouseout: () => { layer.setStyle(styleFor(name)); if(view.selected && layersByName[view.selected]) layersByName[view.selected].forEach(l => l.bringToFront()); }
+      });
+    }
+  }).addTo(map);
+
+  /* Round markers for areas too small to tap on a phone */
+  Object.keys(layersByName).forEach(name => {
+    const b = groupBounds(name);
+    if(!b) return;
+    const w = b.getEast() - b.getWest(), h = b.getNorth() - b.getSouth();
+    if(!(DOT_ALWAYS.has(name) || Math.max(w,h) < 1.8)) return;
+    const c = b.getCenter();
+    dots[name] = L.circleMarker(c, {pane:"dots", radius:9, fillOpacity:1, weight:2, color:"#ffffff", interactive:false}).addTo(map);
+    const halo = L.circleMarker(c, {pane:"dots", radius:22, stroke:false, fill:true, fillOpacity:0}).addTo(map);
+    halo.bindTooltip(() => tipHtml(name), {className:"tip", direction:"top", offset:[0,-8]});
+    halo.on("click", () => selectState(name));
+  });
+
+  applyStyles();
+  if(view.selected) zoomTo(view.selected); else fitIndia();
+  el.status.hidden = true;
+}
+
+function loadBoundaries(){
+  el.status.hidden = false;
+  el.status.innerHTML = '<span class="spin"></span><span>Loading map…</span>';
+  fetch(INDIA_GEOJSON)
+    .then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(buildLayers)
+    .catch(err => {
+      console.error(err);
+      el.status.innerHTML = "<span>The state boundaries could not be loaded. You can still pick a state from the list at the top.</span><button type=\"button\" id=\"retryBtn\">Try again</button>";
+      $("#retryBtn").addEventListener("click", loadBoundaries);
+    });
+}
+
+function initMap(){
+  map = L.map("map", {zoomControl:false, minZoom:4, maxZoom:18, zoomSnap:.25, maxBounds:[[0,58],[42,102]], maxBoundsViscosity:.8}).setView([22.5,80],5);
+  map.attributionControl.setPrefix(false);
+  L.control.zoom({position:"bottomright"}).addTo(map);
+  map.createPane("dots");
+  map.getPane("dots").style.zIndex = 450;
+  setBasemap(view.basemap);
+  loadBoundaries();
+}
+
+/* =========================================================
+   SELECTION
+========================================================= */
+function selectState(name, opts){
+  opts = opts || {};
+  name = normalizeStateName(name);
+  if(!name) return;
+  view.selected = name;
+  el.stateSel.value = diseaseData[name] ? name : "";
+  renderState(name);
+  el.panel.scrollTop = 0;
+  try{ history.replaceState(null, "", "#" + encodeURIComponent(name)); }catch(e){}
+  if(map && geojsonLayer){ applyStyles(); zoomTo(name); }
+  if(!opts.silent){ const h = $("#stName"); if(h) h.focus({preventScroll:true}); }
+}
+function resetView(){
+  view.selected = null;
+  el.stateSel.value = "";
+  try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
+  renderOverview();
+  el.panel.scrollTop = 0;
+  if(map && geojsonLayer){ applyStyles(); fitIndia(); }
+}
+function refreshView(){
+  computeBreaks();
+  updateLegend();
+  if(map && geojsonLayer) applyStyles();
+  if(!view.selected) renderOverview();
+}
+
+/* =========================================================
+   START
+========================================================= */
+function init(){
+  stateNames.forEach(n => { el.stateSel.insertAdjacentHTML("beforeend", '<option value="'+esc(n)+'">'+esc(n)+"</option>"); });
+  el.disSel.innerHTML = '<option value="all">All diseases</option>' + diseaseNames.map(n => '<option value="'+esc(n)+'">'+esc(n)+"</option>").join("");
+  el.meaSel.innerHTML = Object.keys(MEASURES).map(k => '<option value="'+k+'">'+MEASURES[k].short+"</option>").join("");
+
+  el.stateSel.addEventListener("change", () => el.stateSel.value ? selectState(el.stateSel.value) : resetView());
+  el.disSel.addEventListener("change", () => { view.disease = el.disSel.value; refreshView(); });
+  el.meaSel.addEventListener("change", () => { view.measure = el.meaSel.value; refreshView(); });
+  el.resetBtn.addEventListener("click", resetView);
+  el.baseBtn.addEventListener("click", () => {
+    if(!map) return;
+    const keys = Object.keys(BASEMAPS);
+    setBasemap(keys[(keys.indexOf(view.basemap)+1) % keys.length]);
+  });
+  el.noteBtn.addEventListener("click", () => {
+    const a = $("#about");
+    if(!a) return;
+    a.open = true;
+    a.scrollIntoView({block:"center", behavior: reduceMotion() ? "auto" : "smooth"});
+  });
+  el.info.addEventListener("click", e => {
+    const t = e.target.closest("[data-state],[data-act]");
+    if(!t) return;
+    if(t.dataset.state) selectState(t.dataset.state);
+    else if(t.dataset.act === "reset") resetView();
+    else if(t.dataset.act === "toggle-all"){
+      const all = el.info.querySelectorAll(".dz"), open = Array.prototype.every.call(all, d => d.open);
+      all.forEach(d => { d.open = !open; });
+      t.textContent = open ? "Expand all" : "Collapse all";
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if(e.key === "Escape" && view.selected && !/^(SELECT|INPUT)$/.test(document.activeElement.tagName)) resetView();
+  });
+
+  computeBreaks();
+  updateLegend();
+  renderOverview();
+
+  const fromHash = normalizeStateName(decodeURIComponent((location.hash || "").slice(1)));
+  if(fromHash && diseaseData[fromHash]) selectState(fromHash, {silent:true});
+
+  if(typeof L === "undefined"){
+    el.status.hidden = false;
+    el.status.innerHTML = "<span>The map library could not be loaded. You can still pick a state from the list at the top.</span>";
+  }else{
+    initMap();
+  }
+}
+init();
+</script>
+</body>
+</html>
